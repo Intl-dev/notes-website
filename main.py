@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, Column, Integer, String, true, MetaData, T
 from pydantic import BaseModel
 import os
 import dotenv
+import bcrypt
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True)
@@ -33,10 +34,30 @@ class LoginRequest(BaseModel):
 @app.post("/auth/login", status_code=200)
 async def login(request: LoginRequest):
     print(f"Login request for {request.email}")
-    insert_logs = logins.insert().values(email=request.email, password=request.password)
-    connection.execute(insert_logs)
+    check_user = logins.select().where(logins.c.email == request.email)
+    print(check_user)
+    result = connection.execute(check_user)
+    row = result.first()
+    print(result)
+    if row:
+        stored_hashed_password = row.password
+        print(stored_hashed_password)
+        is_correct = bcrypt.checkpw(request.password.encode('utf-8'), stored_hashed_password.encode('utf-8'))
+        if is_correct:
+            print("its correct YAY")
+            return
+
+@app.post("/auth/signup", status_code=200)
+async def signup(request: LoginRequest):
+    print(f"Signup request for {request.email}")
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(request.password.encode("utf-8"), salt)
+    hashed_password_str = hashed_password.decode("utf-8")
+    signup = logins.insert().values(email=request.email, password=hashed_password_str)
+    connection.execute(signup)
     connection.commit()
     return
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
