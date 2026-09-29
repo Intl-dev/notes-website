@@ -1,7 +1,7 @@
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from sqlalchemy import create_engine, Column, Integer, String, true, MetaData, Table
+from sqlalchemy import create_engine, Column, Integer, String, MetaData, Table
 from pydantic import BaseModel
 import os
 import dotenv
