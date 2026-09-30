@@ -58,7 +58,7 @@ async def login(request: LoginRequest):
             user_id = row.id
             payload = {"user_id": user_id}
             token = jwt.encode(payload, secret, algorithm="HS256")
-            return token
+            return {"token": token}
         else:
             return {"message": "Wrong Password"}
     else:
@@ -86,6 +86,7 @@ async def add_note(request: CreateNoteRequest, authorization: str = Header(None)
     add_note = notes.insert().values(user_id=user_id, content=note_content)
     connection.execute(add_note)
     connection.commit()
+    return
 
 
 if __name__ == "__main__":
