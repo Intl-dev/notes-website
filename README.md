@@ -1,4 +1,4 @@
-# notes-website-backend
+# notes-website
 
 A small website to store notes
 
