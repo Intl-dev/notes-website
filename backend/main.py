@@ -1,5 +1,3 @@
-import json
-from urllib import request
 
 import fastapi
 from fastapi import FastAPI, Depends, Header, Body
@@ -11,7 +9,7 @@ import os
 import dotenv
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from fastapi.responses import JSONResponse
 from starlette import status
 
@@ -49,8 +47,9 @@ def create_user(request: LoginRequest):
     hashed_password = bcrypt.hashpw(request.password.encode("utf-8"), salt)
     hashed_password_str = hashed_password.decode("utf-8")
     save_acc_data = logins.insert().values(email=request.email, password=hashed_password_str)
-    connection.execute(save_acc_data)
-    connection.commit()
+    with engine.begin() as connection:
+        connection.execute(save_acc_data)
+
 
 def token_get_user_id(authorization: str):
     token = authorization.split(" ")[1]
@@ -60,21 +59,17 @@ def token_get_user_id(authorization: str):
 
 @app.post("/auth/login", status_code=status.HTTP_200_OK)
 async def login(request: LoginRequest):
-    print(f"Login request for {request.email}")
     check_user = logins.select().where(logins.c.email == request.email)
-    print(check_user)
     result = connection.execute(check_user)
     row = result.first()
-    print(result)
     if row:
         stored_hashed_password = row.password
-        print(stored_hashed_password)
         is_correct = bcrypt.checkpw(request.password.encode('utf-8'), stored_hashed_password.encode('utf-8'))
         if is_correct:
-            print("its correct YAY")
             user_id = row.id
-            payload = {"user_id": user_id}
-            token = jwt.encode(payload, secret, algorithm="HS256", expires_in=3600)
+            payload = {"user_id": user_id,
+                       "exp": datetime.now(UTC) + timedelta(hours=1)}
+            token = jwt.encode(payload, secret, algorithm="HS256")
             return {"token": token}
         else:
             return {"message": "Wrong Password"}
@@ -83,17 +78,21 @@ async def login(request: LoginRequest):
 
 @app.post("/auth/signup", status_code=status.HTTP_200_OK)
 async def signup(request: LoginRequest):
-    print(f"Signup request for {request.email}")
     create_user(request)
-    return
+    row = connection.execute(logins.select().where(logins.c.email == request.email)).fetchone()
+    user_id = row.id
+    payload = {"user_id": user_id,
+               "exp": datetime.now(UTC) + timedelta(hours=1)}
+    token = jwt.encode(payload, secret, algorithm="HS256")
+    return {"token": token}
 
 @app.post("/notes", status_code=status.HTTP_200_OK)
 async def add_note(request: CreateNoteRequest, authorization: str = Header(None)):
     user_id = token_get_user_id(authorization)
     note_content = request.content
     add_note = notes.insert().values(user_id=user_id, content=note_content)
-    connection.execute(add_note)
-    connection.commit()
+    with engine.begin() as connection:
+        connection.execute(add_note)
     return
 
 @app.get("/notes", status_code=status.HTTP_200_OK)
@@ -101,24 +100,35 @@ async def send_notes(authorization: str = Header(None)):
     user_id = token_get_user_id(authorization)
     notes_rows = notes.select().where(notes.c.user_id == user_id)
     notes_list = []
-    for row in connection.execute(notes_rows):
-        notes_list.append({"createdAt": "N/A", "content": row.content, "id": row.id})
-    json_to_send = JSONResponse(notes_list)
-    return json_to_send
+    with engine.begin() as connection:
+        for row in connection.execute(notes_rows):
+            notes_list.append({"createdAt": "N/A", "content": row.content, "id": row.id})
+        json_to_send = JSONResponse(notes_list)
+        return json_to_send
 
 @app.delete("/notes/{id}", status_code=status.HTTP_200_OK)
 async def delete_note(id: int, authorization: str = Header(None)):
-    delete_note = notes.delete().where(notes.c.id == id)
-    connection.execute(delete_note)
-    connection.commit()
+    user_id = token_get_user_id(authorization)
+    with engine.begin() as connection:
+        note_row = connection.execute(notes.select().where(notes.c.id == id)).fetchone()
+        note_user_id = note_row.user_id
+        if note_user_id == user_id:
+            delete_note = notes.delete().where(notes.c.id == id)
+            with engine.begin() as connection:
+                connection.execute(delete_note)
+
 
 @app.put("/notes/{id}", status_code=status.HTTP_200_OK)
 async def update_note(id: int, request: dict = Body(...), authorization: str = Header(None)):
-
-    content = request["content"]
-    update_note = notes.update().where(notes.c.id == id).values(content=content)
-    connection.execute(update_note)
-    connection.commit()
+    user_id = token_get_user_id(authorization)
+    with engine.begin() as connection:
+        note = connection.execute(notes.select().where(notes.c.id == id))
+        note_user_id = note.fetchone().user_id
+        if note_user_id == user_id:
+            content = request["content"]
+            update_note = notes.update().where(notes.c.id == id).values(content=content)
+            with engine.begin() as connection:
+                connection.execute(update_note)
 
 
 
