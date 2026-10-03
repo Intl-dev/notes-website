@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: db
+
+
+  script:
+    build: ./backend
+    depends_on:
+     - db
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+  

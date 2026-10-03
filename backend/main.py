@@ -6,25 +6,26 @@ import uvicorn
 from sqlalchemy import create_engine, Column, Integer, String, MetaData, Table
 from pydantic import BaseModel
 import os
-import dotenv
 import bcrypt
 import jwt
 from datetime import datetime, timedelta, UTC
 from fastapi.responses import JSONResponse
 from starlette import status
-
+import dotenv
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 secret = os.getenv("SECRET")
-engine = create_engine(DATABASE_URL, echo=True)
+
+engine = None
+connection = None
 
 metadata = MetaData()
 
 logins = Table("logins", metadata, Column("id", Integer, primary_key=True), Column("email", String), Column("password", String))
 notes = Table("notes", metadata, Column("id", Integer, primary_key=True), Column("user_id", Integer), Column("content", String))
-metadata.create_all(engine)
 
-connection = engine.connect()
+
+
 app = fastapi.FastAPI()
 
 app.add_middleware(
@@ -34,6 +35,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+engine = create_engine(DATABASE_URL)
+metadata.create_all(engine)
+connection = engine.connect()
+
 
 class LoginRequest(BaseModel):
     email: str
