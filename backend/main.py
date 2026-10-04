@@ -1,4 +1,3 @@
-
 import fastapi
 from fastapi import FastAPI, Depends, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +13,7 @@ from starlette import status
 import dotenv
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-secret = os.getenv("SECRET")
+SECRET = os.getenv("SECRET")
 
 engine = None
 connection = None
@@ -60,7 +59,7 @@ def create_user(request: LoginRequest):
 
 def token_get_user_id(authorization: str):
     token = authorization.split(" ")[1]
-    decoded_token = jwt.decode(token, secret, algorithms=["HS256"])
+    decoded_token = jwt.decode(token, SECRET, algorithms=["HS256"])
     user_id = int(decoded_token["user_id"])
     return user_id
 
@@ -76,7 +75,7 @@ async def login(request: LoginRequest):
             user_id = row.id
             payload = {"user_id": user_id,
                        "exp": datetime.now(UTC) + timedelta(hours=1)}
-            token = jwt.encode(payload, secret, algorithm="HS256")
+            token = jwt.encode(payload, SECRET, algorithm="HS256")
             return {"token": token}
         else:
             return {"message": "Wrong Password"}
@@ -90,7 +89,7 @@ async def signup(request: LoginRequest):
     user_id = row.id
     payload = {"user_id": user_id,
                "exp": datetime.now(UTC) + timedelta(hours=1)}
-    token = jwt.encode(payload, secret, algorithm="HS256")
+    token = jwt.encode(payload, SECRET, algorithm="HS256")
     return {"token": token}
 
 @app.post("/notes", status_code=status.HTTP_200_OK)
